@@ -3,6 +3,7 @@
 
 用法（在 openwrt/ 目录下运行）:
   apply_options.py apply    读 $OPTIONS_JSON，校验后追加 .config 并生成 files/etc/uci-defaults/zz-user-options
+  apply_options.py ib       ImageBuilder 模式：只生成 files/ 与包列表（写入 $GITHUB_OUTPUT）
   apply_options.py verify   在 make defconfig 之后运行，确认请求的包真的被选中（缺失则失败，避免白编几小时）
 
 所有取值都按 docs/catalog.json 白名单校验；不接受任何密码类参数。
@@ -48,11 +49,13 @@ def allowed_packages():
     return items
 
 
-def apply():
+def apply(mode="src"):
     o = load_options()
     if not o:
-        print("未提供自定义参数，跳过")
-        return
+        if mode == "src":
+            print("未提供自定义参数，跳过")
+            return
+        # ib 模式：没有参数时按 catalog 默认值出固件
     d = CATALOG["defaults"]
     unknown = set(o) - {"packages", "theme", "hostname", "lan_ip", "netmask", "ipv6", "partsize", "kernel_wireguard"}
     if unknown:
@@ -136,10 +139,19 @@ def apply():
     UCI.write_text("\n".join(lines))
     UCI.chmod(0o755)
 
-    with open(".config", "a") as f:
-        f.write("\n# ===== 页面提交的自定义参数 =====\n" + "\n".join(cfg) + "\n")
-    STATE.write_text("\n".join(dict.fromkeys(wanted)) + "\n")
-    print(f"已应用: 软件包 {len(set(wanted))} 个, 主题 {theme_id}, LAN {lan_ip}/{netmask}, "
+    if mode == "src":
+        with open(".config", "a") as f:
+            f.write("\n# ===== 页面提交的自定义参数 =====\n" + "\n".join(cfg) + "\n")
+        STATE.write_text("\n".join(dict.fromkeys(wanted)) + "\n")
+    else:  # ib：把包列表和分区大小交给工作流
+        text = f"packages={' '.join(dict.fromkeys(wanted))}\npartsize={size}\n"
+        out = os.environ.get("GITHUB_OUTPUT")
+        if out:
+            with open(out, "a") as fh:
+                fh.write(text)
+        else:
+            print(text)
+    print(f"已应用({mode}): 软件包 {len(set(wanted))} 个, 主题 {theme_id}, LAN {lan_ip}/{netmask}, "
           f"主机名 {hostname}, IPv6 {'开' if ipv6 else '关'}, 分区 {size}MB")
 
 
@@ -155,4 +167,4 @@ def verify():
 
 
 if __name__ == "__main__":
-    {"apply": apply, "verify": verify}.get(sys.argv[1] if len(sys.argv) > 1 else "", lambda: die("用法: apply|verify"))()
+    {"apply": apply, "ib": lambda: apply("ib"), "verify": verify}.get(sys.argv[1] if len(sys.argv) > 1 else "", lambda: die("用法: apply|ib|verify"))()

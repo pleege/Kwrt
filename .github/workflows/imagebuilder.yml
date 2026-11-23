@@ -1,0 +1,87 @@
+name: ImageBuilder 快速构建
+
+# 用 Kwrt 作者发布的 ImageBuilder + 预编译软件包出 x86_64 固件，几分钟完成（完整编译要 3 小时）。
+# 限制：内核和已编译好的内容不能改，只能选包、写入首次启动设置；包版本跟随作者的发布。
+#   gh workflow run "ImageBuilder 快速构建" -f options='{"theme":"luci-theme-argon","packages":["luci-app-ttyd"]}'
+on:
+  workflow_dispatch:
+    inputs:
+      options:
+        description: '自定义参数 JSON（见 docs/catalog.json；不要放密码）'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  IB_BASE: https://dl.openwrt.ai/releases/25.12/targets/x86/64
+  IB_FILE: kwrt-imagebuilder-x86-64.Linux-x86_64.tar.zst
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install tools
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: sudo -E apt-get -qq update && sudo -E apt-get -qq install zstd gawk rsync
+
+    - name: Download ImageBuilder
+      run: |
+        cd "$RUNNER_TEMP"
+        curl -fsSL --retry 3 -o sha256sums "$IB_BASE/sha256sums"
+        curl -fSL --retry 3 -o "$IB_FILE" "$IB_BASE/$IB_FILE"
+        grep -F "$IB_FILE" sha256sums | sed 's/ \*/  /' | sha256sum -c -
+        mkdir ib && tar --zstd -xf "$IB_FILE" -C ib --strip-components=1
+        ls ib | head -20
+
+    - name: Apply options
+      id: opts
+      env:
+        OPTIONS_JSON: ${{ github.event.inputs.options }}
+      run: |
+        cd "$RUNNER_TEMP/ib"
+        python3 -I "$GITHUB_WORKSPACE/devices/common/apply_options.py" ib
+        echo "---- uci-defaults ----"; cat files/etc/uci-defaults/zz-user-options
+
+    - name: Build image
+      env:
+        PACKAGES: ${{ steps.opts.outputs.packages }}
+        PARTSIZE: ${{ steps.opts.outputs.partsize }}
+      run: |
+        cd "$RUNNER_TEMP/ib"
+        make image PROFILE=generic PACKAGES="$PACKAGES" FILES=files ROOTFS_PARTSIZE="$PARTSIZE" 2>&1 | tee "$GITHUB_WORKSPACE/make.log"
+        test "${PIPESTATUS[0]}" -eq 0
+        ls -la bin/targets/x86/64/
+
+    - name: Verify packages in manifest
+      env:
+        PACKAGES: ${{ steps.opts.outputs.packages }}
+      run: |
+        cd "$RUNNER_TEMP/ib/bin/targets/x86/64"
+        mf=$(ls *.manifest | head -1); echo "manifest: $mf"
+        missing=""
+        for p in $PACKAGES; do grep -q "^$p - " "$mf" || missing="$missing $p"; done
+        [ -z "$missing" ] || { echo "::error::固件清单里缺少:$missing"; exit 1; }
+        echo "核对通过：请求的软件包都在固件里"
+
+    - name: Upload firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware_x86_64_imagebuilder
+        path: |
+          ${{ runner.temp }}/ib/bin/targets/x86/64/*combined-efi.img.gz
+          ${{ runner.temp }}/ib/bin/targets/x86/64/*.manifest
+          ${{ runner.temp }}/ib/bin/targets/x86/64/sha256sums
+
+    - name: Upload log on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: imagebuilder-log
+        path: make.log
+        if-no-files-found: ignore
