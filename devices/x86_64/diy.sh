@@ -18,4 +18,11 @@ sed -i 's/kmod-r8169/kmod-r8168/' target/linux/x86/image/64.mk
 
 sed -i 's/256/1024/g' target/linux/x86/image/Makefile
 
-
+# op-packages 的 dockerd 包 Makefile 与 files/ 目录不同步（2026-11-23 编译实测报错）：
+# Makefile 要安装 16_docker-netifd-migrate2，目录里只有 16_docker-netifd-migrate。
+# 上游修复后文件会存在，此处自动跳过。
+_ud=feeds/kiddin9/dockerd/files/etc/uci-defaults
+if [ -d "$_ud" ] && [ ! -f "$_ud/16_docker-netifd-migrate2" ] && [ -f "$_ud/16_docker-netifd-migrate" ]; then
+  cp "$_ud/16_docker-netifd-migrate" "$_ud/16_docker-netifd-migrate2"
+  echo "dockerd: 已补 16_docker-netifd-migrate2"
+fi

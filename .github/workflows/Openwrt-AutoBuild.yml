@@ -237,10 +237,29 @@ jobs:
         df -hT
         cd openwrt
         echo -e "$(($(nproc)+1)) thread compile"
-        make -j$(($(nproc)+1)) || { log=$(mktemp);make V=s &>$log; } || { tail -50 $log; curl -k --data chat_id="${{ env.TELEGRAM_CHAT_ID }}" --data "text=❌ OpenWrt ${{ env.VERSION }} ${{matrix.target}} 编译失败 😂" "https://api.telegram.org/bot${{ env.TELEGRAM_TOKEN }}/sendMessage";df -hT;exit 1; }
+        if ! make -j$(($(nproc)+1)); then
+          echo "并行编译失败，单线程重试并保存完整日志（避免错误被截断）"
+          if ! make -j1 V=s > "$GITHUB_WORKSPACE/make-retry.log" 2>&1; then
+            echo "==== 失败的包 ===="
+            grep -nE 'ERROR: |failed to build|\*\*\* \[' "$GITHUB_WORKSPACE/make-retry.log" | tail -40 || true
+            echo "==== 日志末尾 150 行 ===="
+            tail -150 "$GITHUB_WORKSPACE/make-retry.log"
+            [ -n "$TELEGRAM_TOKEN" ] && curl -k --data chat_id="$TELEGRAM_CHAT_ID" --data "text=❌ OpenWrt $VERSION ${{matrix.target}} 编译失败 😂" "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" || true
+            df -hT
+            exit 1
+          fi
+        fi
         rm -rf staging_dir/toolchain-*/bin/*openwrt-linux-musl-lto-dump
         rm -rf staging_dir/toolchain-*/initial
         df -hT
+
+    - name: Upload build log on failure
+      if: failure() && steps.compile.outcome == 'failure'
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log_${{matrix.target}}
+        path: make-retry.log
+        if-no-files-found: ignore
 
     - name: Organize files
       id: organize
