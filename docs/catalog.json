@@ -15,9 +15,26 @@
     { "id": "luci-theme-bootstrap", "name": "Bootstrap（官方）", "path": "bootstrap" },
     { "id": "luci-theme-material", "name": "Material（官方）", "path": "material" },
     { "id": "luci-theme-openwrt-2020", "name": "OpenWrt 2020（官方）", "path": "openwrt2020" },
+    { "id": "luci-theme-vantage", "name": "Vantage（控制台风格，自带 luci-app-vantage）", "path": "vantage" },
     { "id": "luci-theme-design", "name": "Design", "path": "design" },
     { "id": "luci-theme-kucat", "name": "Kucat", "path": "kucat" },
-    { "id": "luci-theme-aurora", "name": "Aurora", "path": "aurora" }
+    { "id": "luci-theme-aurora", "name": "Aurora", "path": "aurora" },
+    { "id": "luci-theme-material3", "name": "Material 3", "path": "material3" },
+    { "id": "luci-theme-fluent", "name": "Fluent", "path": "fluent" },
+    { "id": "luci-theme-glass", "name": "Glass", "path": "glass" },
+    { "id": "luci-theme-liquid", "name": "Liquid", "path": "liquid" },
+    { "id": "luci-theme-shadcn", "name": "Shadcn", "path": "shadcn" },
+    { "id": "luci-theme-shadcnui", "name": "Shadcn UI", "path": "shadcnui" },
+    { "id": "luci-theme-spectra", "name": "Spectra", "path": "spectra" },
+    { "id": "luci-theme-carbon", "name": "Carbon", "path": "carbon" },
+    { "id": "luci-theme-luxe", "name": "Luxe", "path": "luxe" },
+    { "id": "luci-theme-lightblue", "name": "Lightblue", "path": "lightblue" },
+    { "id": "luci-theme-noobwrt", "name": "NoobWRT", "path": "noobwrt" },
+    { "id": "luci-theme-uniwrt", "name": "UniWRT", "path": "uniwrt" },
+    { "id": "luci-theme-inas", "name": "Inas", "path": "inas" },
+    { "id": "luci-theme-rmm", "name": "RMM", "path": "rmm" },
+    { "id": "luci-theme-7dollar", "name": "7dollar", "path": "7dollar" },
+    { "id": "luci-theme-footstrap", "name": "Footstrap", "path": "footstrap" }
   ],
   "groups": [
     {
