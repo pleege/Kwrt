@@ -23,3 +23,11 @@ gh api repos/<owner>/Kwrt/dispatches -f event_type=x86_64 -f 'client_payload[tar
 - 包源仍是上游作者的 `kiddin9/op-packages`（`devices/common/diy.sh`），构建内容部分取决于它。
 - 与上游合并时，上面两个工作流文件会冲突，保留本 fork 的版本即可。
 - 现网的自装脚本、`/work`、`/etc/config` 含密钥，**不放进本仓库**（本仓库公开），刷机后从私有备份还原。
+
+## 参数页面（docs/index.html）
+- 可选：软件包、主机名、后台地址（LAN IP/掩码）、主题、IPv6、系统分区大小、内核态 WireGuard。
+- **不接受任何密码**（后台密码、PPPoE 等）。本仓库公开，工作流输入和固件产物都是公开的；这些请刷机后在路由器后台设置。
+- 选项白名单在 `docs/catalog.json`；工作流里 `devices/common/apply_options.py` 按它校验，非法值直接失败。
+- 编译前（defconfig 之后）会核对所选软件包是否真的被选中，缺失则立即失败，不会白编几小时。
+- 本地打开：`cd docs && python3 -m http.server 8000`，访问 http://localhost:8000
+- 也可命令行：`gh workflow run "Repo Dispatcher" -f target=x86_64 -f options='{"theme":"luci-theme-argon","packages":["luci-app-ttyd"]}'`

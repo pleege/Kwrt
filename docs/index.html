@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kwrt 定制编译</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1d2330; --muted:#667085; --line:#e4e7ec; --accent:#2f6fed; --bad:#d92d20; --ok:#027a48; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14171c; --card:#1c2027; --fg:#e8eaed; --muted:#9aa3b2; --line:#2e343d; --accent:#6b9bff; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 120px; }
+  h1 { font-size: 22px; margin: 8px 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 14px 0; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 16px; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  input[type=text], input[type=password], input[type=number], select {
+    padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 14px; }
+  .pkgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 12px; }
+  .pkgs label { display: flex; gap: 6px; align-items: baseline; cursor: pointer; }
+  .pkgs small { color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); cursor: pointer; font-size: 14px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  .warn { color: var(--bad); }
+  #msg { margin-top: 10px; white-space: pre-wrap; }
+  #msg.ok { color: var(--ok); } #msg.err { color: var(--bad); }
+  pre { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow: auto; font-size: 12px; max-height: 240px; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 10px 16px; }
+  #bar .in { max-width: 860px; margin: 0 auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #count { color: var(--muted); font-size: 13px; margin-right: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kwrt 定制编译</h1>
+  <p class="sub">目标设备：x86_64（N4100-4L）。这里只放非敏感参数；后台密码、PPPoE 账号密码请刷机后在路由器后台设置。</p>
+
+  <section>
+    <h2>基本设置</h2>
+    <div class="grid">
+      <label class="field">主机名<input type="text" id="hostname" maxlength="32"></label>
+      <label class="field">后台地址（LAN IP）<input type="text" id="lan_ip" inputmode="decimal"></label>
+      <label class="field">子网掩码<select id="netmask"></select></label>
+      <label class="field">默认主题<select id="theme"></select></label>
+      <label class="field">系统分区大小（MB）<input type="number" id="partsize"></label>
+      <label class="field">IPv6<select id="ipv6"><option value="1">开启</option><option value="0">关闭</option></select></label>
+      <label class="field">内核态 WireGuard<select id="kernel_wireguard"><option value="0">不加（沿用 wireguard-go）</option><option value="1">加入 kmod-wireguard</option></select></label>
+    </div>
+    <p class="note">分区越大，可装的 Docker 镜像和文件越多，但刷机镜像也越大。盘是 32G mSATA，默认值沿用 Kwrt 的 1004MB。</p>
+  </section>
+
+  <section>
+    <h2>软件包</h2>
+    <div class="row" style="margin-bottom:8px">
+      <input type="text" id="filter" placeholder="搜索软件包…" style="min-width:200px">
+      <span id="presets" class="row"></span>
+      <button id="clear" type="button">清空选择</button>
+    </div>
+    <div id="groups"></div>
+    <p class="note">包名都已核对存在于包源，但“存在”不等于一定能编过；编译前会再核对一次，有缺失会直接报错，不会白编几小时。</p>
+  </section>
+
+  <section>
+    <h2>触发编译</h2>
+    <div class="grid">
+      <label class="field">仓库（owner/repo）<input type="text" id="repo" placeholder="owner/Kwrt"></label>
+      <label class="field">GitHub 令牌（仅存于本浏览器）<input type="password" id="token" autocomplete="off" placeholder="fine-grained，仅此仓库，Actions: 读写"></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label><input type="checkbox" id="nocache"> 不使用缓存（会明显变慢）</label>
+    </div>
+    <p class="note">令牌只在点击“触发编译”时发往 api.github.com，不会发到其他地方。建议使用只授权这一个仓库、仅 Actions 读写权限的 fine-grained 令牌。不想填令牌，可用“复制命令”。</p>
+    <div id="msg"></div>
+  </section>
+
+  <section>
+    <h2>将提交的参数</h2>
+    <pre id="preview"></pre>
+  </section>
+</main>
+
+<div id="bar"><div class="in">
+  <span id="count"></span>
+  <button id="copy" type="button">复制命令</button>
+  <button id="go" class="primary" type="button">触发编译</button>
+</div></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let catalog = null;
+
+async function loadCatalog() {
+  for (const url of ["catalog.json", "https://raw.githubusercontent.com/" + (localStorage.repo || "") + "/25.12/docs/catalog.json"]) {
+    try { const r = await fetch(url, { cache: "no-store" }); if (r.ok) return await r.json(); } catch (e) { /* 试下一个 */ }
+  }
+  throw new Error("读取 catalog.json 失败。本地打开时请在 docs 目录运行：python3 -m http.server 8000，再访问 http://localhost:8000");
+}
+
+function el(tag, props, ...kids) {
+  const n = Object.assign(document.createElement(tag), props || {});
+  for (const k of kids) n.append(k);
+  return n;
+}
+
+function build() {
+  const d = catalog.defaults;
+  $("hostname").value = d.hostname;
+  $("lan_ip").value = d.lan_ip;
+  $("partsize").min = catalog.partsize.min; $("partsize").max = catalog.partsize.max; $("partsize").value = d.partsize;
+  $("ipv6").value = d.ipv6 ? "1" : "0";
+  $("kernel_wireguard").value = d.kernel_wireguard ? "1" : "0";
+  for (const m of catalog.netmasks) $("netmask").append(el("option", { value: m, textContent: m }));
+  $("netmask").value = d.netmask;
+  for (const t of catalog.themes) $("theme").append(el("option", { value: t.id, textContent: t.name }));
+  $("theme").value = d.theme;
+
+  const groups = $("groups");
+  for (const g of catalog.groups) {
+    const box = el("div", { className: "pkgs" });
+    for (const it of g.items) {
+      const cb = el("input", { type: "checkbox", value: it.id });
+      cb.addEventListener("change", refresh);
+      const lab = el("label", { title: it.id }, cb, el("span", { textContent: it.name }));
+      if (it.requires) lab.append(el("small", { textContent: " +" + it.requires.length + "依赖" }));
+      lab.dataset.search = (it.id + " " + it.name).toLowerCase();
+      box.append(lab);
+    }
+    groups.append(el("h2", { textContent: g.name, style: "margin-top:12px" }), box);
+  }
+  for (const p of catalog.presets) {
+    const b = el("button", { type: "button", textContent: "预设：" + p.name });
+    b.addEventListener("click", () => { setPackages(p.packages); });
+    $("presets").append(b);
+  }
+
+  $("repo").value = localStorage.repo || guessRepo();
+  $("token").value = localStorage.token || "";
+  for (const id of ["hostname", "lan_ip", "netmask", "theme", "partsize", "ipv6", "kernel_wireguard", "nocache", "repo"]) {
+    $(id).addEventListener("input", refresh);
+  }
+  $("filter").addEventListener("input", () => {
+    const q = $("filter").value.trim().toLowerCase();
+    for (const lab of document.querySelectorAll(".pkgs label")) lab.style.display = !q || lab.dataset.search.includes(q) ? "" : "none";
+  });
+  $("clear").addEventListener("click", () => setPackages([]));
+  refresh();
+}
+
+function guessRepo() {
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  const r = location.pathname.split("/").filter(Boolean)[0];
+  return m && r ? m[1] + "/" + r : "";
+}
+
+function setPackages(list) {
+  const set = new Set(list);
+  for (const cb of document.querySelectorAll(".pkgs input")) cb.checked = set.has(cb.value);
+  refresh();
+}
+
+function options() {
+  return {
+    packages: [...document.querySelectorAll(".pkgs input:checked")].map((c) => c.value),
+    theme: $("theme").value,
+    hostname: $("hostname").value.trim(),
+    lan_ip: $("lan_ip").value.trim(),
+    netmask: $("netmask").value,
+    ipv6: $("ipv6").value === "1",
+    partsize: parseInt($("partsize").value, 10),
+    kernel_wireguard: $("kernel_wireguard").value === "1",
+  };
+}
+
+function validate(o) {
+  const ip = o.lan_ip.split(".");
+  if (ip.length !== 4 || ip.some((x) => !/^\d{1,3}$/.test(x) || +x > 255)) return "LAN IP 格式不对";
+  if (!/^[A-Za-z0-9]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?$/.test(o.hostname)) return "主机名只允许字母、数字、连字符";
+  const lim = catalog.partsize;
+  if (!Number.isInteger(o.partsize) || o.partsize < lim.min || o.partsize > lim.max) return "分区大小须在 " + lim.min + "~" + lim.max + " 之间";
+  if (!/^[\w.-]+\/[\w.-]+$/.test($("repo").value.trim())) return "仓库格式应为 owner/repo";
+  return null;
+}
+
+function payload() {
+  const o = options();
+  const nocache = $("nocache").checked;
+  return { event_type: "x86_64" + (nocache ? " nocache" : ""), client_payload: { target: "x86_64", options: o } };
+}
+
+function refresh() {
+  const p = payload();
+  $("preview").textContent = JSON.stringify(p.client_payload.options, null, 2);
+  $("count").textContent = "已选 " + p.client_payload.options.packages.length + " 个软件包";
+}
+
+function say(text, cls) { const m = $("msg"); m.textContent = text; m.className = cls || ""; }
+
+$("copy").addEventListener("click", async () => {
+  const err = validate(options()); if (err) return say(err, "err");
+  const repo = $("repo").value.trim();
+  const body = JSON.stringify(payload()).replace(/'/g, "'\\''");
+  const cmd = "echo '" + body + "' | gh api repos/" + repo + "/dispatches --input -";
+  try { await navigator.clipboard.writeText(cmd); say("命令已复制，在装好 gh 的终端里粘贴运行即可。", "ok"); }
+  catch (e) { say(cmd); }
+});
+
+$("go").addEventListener("click", async () => {
+  const o = options(); const err = validate(o); if (err) return say(err, "err");
+  const repo = $("repo").value.trim(), token = $("token").value.trim();
+  if (!token) return say("请先填写令牌，或改用“复制命令”。", "err");
+  localStorage.repo = repo; localStorage.token = token;
+  $("go").disabled = true; say("提交中…");
+  try {
+    const r = await fetch("https://api.github.com/repos/" + repo + "/dispatches", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+      body: JSON.stringify(payload()),
+    });
+    if (r.status === 204) say("已提交。去 https://github.com/" + repo + "/actions 查看进度；首次编译通常要 1.5~3 小时。", "ok");
+    else say("提交失败 HTTP " + r.status + "：" + (await r.text()).slice(0, 300), "err");
+  } catch (e) { say("网络错误：" + e.message, "err"); }
+  finally { $("go").disabled = false; }
+});
+
+loadCatalog().then((c) => { catalog = c; build(); }).catch((e) => say(e.message, "err"));
+</script>
+</body>
+</html>

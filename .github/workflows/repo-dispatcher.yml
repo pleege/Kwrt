@@ -1,8 +1,7 @@
 name: Repo Dispatcher
 
-# 手动触发单个目标的编译（原版会一次触发 25 个目标）。
-# 也可以绕过本工作流，直接发 repository_dispatch：
-#   gh api repos/<owner>/<repo>/dispatches -f event_type=x86_64 -f 'client_payload[target]=x86_64'
+# 手动触发单个目标的编译。参数也可以用 docs/index.html 页面提交。
+#   gh workflow run "Repo Dispatcher" -f target=x86_64 -f options='{"theme":"luci-theme-argon","packages":["luci-app-ttyd"]}'
 on:
   workflow_dispatch:
     inputs:
@@ -12,6 +11,10 @@ on:
         default: 'x86_64'
       param:
         description: '附加参数，空格分隔（nocache / notg / tags / ssh）'
+        required: false
+        default: ''
+      options:
+        description: '自定义参数 JSON（见 docs/catalog.json；不要放密码）'
         required: false
         default: ''
 
@@ -27,8 +30,10 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TARGET: ${{ github.event.inputs.target }}
         PARAM: ${{ github.event.inputs.param }}
+        OPTIONS: ${{ github.event.inputs.options }}
       run: |
         [[ "$TARGET" =~ ^[a-z0-9_]+$ ]] || { echo "非法 target: $TARGET"; exit 1; }
-        gh api "repos/${{ github.repository }}/dispatches" \
-          -f event_type="$TARGET $PARAM" \
-          -f "client_payload[target]=$TARGET"
+        [ -n "$OPTIONS" ] || OPTIONS=null
+        jq -n --arg t "$TARGET" --arg e "$TARGET $PARAM" --argjson o "$OPTIONS" \
+          '{event_type: $e, client_payload: {target: $t, options: $o}}' \
+          | gh api "repos/${{ github.repository }}/dispatches" --input -

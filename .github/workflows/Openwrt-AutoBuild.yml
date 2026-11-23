@@ -195,6 +195,13 @@ jobs:
           find "devices/${{matrix.target}}/patches" -maxdepth 1 -type f -name '*.revert.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "patch -d './' -R --no-backup-if-mismatch -p1 -F 1 -i '%'"
           find "devices/${{matrix.target}}/patches" -maxdepth 1 -type f -name '*.patch' ! -name '*.revert.patch' ! -name '*.bin.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "patch -d './' --no-backup-if-mismatch -p1 -F 1 -i '%'"
 
+    - name: Apply user options
+      env:
+        OPTIONS_JSON: ${{ toJson(github.event.client_payload.options) }}
+      run: |
+        cd openwrt
+        python3 -I "$GITHUB_WORKSPACE/devices/common/apply_options.py" apply
+
     - name: Defconfig
       run: |
         cd openwrt
@@ -205,6 +212,11 @@ jobs:
         make defconfig
         fi
         cat .config
+
+    - name: Verify user options
+      run: |
+        cd openwrt
+        python3 -I "$GITHUB_WORKSPACE/devices/common/apply_options.py" verify
 
     - name: Cache
       uses: stupidloud/cachewrtbuild@b729f807837dbc3455d02fd35192660d9b662121 # main 2026-05-10

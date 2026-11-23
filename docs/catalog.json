@@ -1,0 +1,108 @@
+{
+  "defaults": {
+    "hostname": "Kwrt",
+    "lan_ip": "192.168.1.1",
+    "netmask": "255.255.255.0",
+    "ipv6": true,
+    "theme": "luci-theme-argon",
+    "partsize": 1004,
+    "kernel_wireguard": false
+  },
+  "netmasks": ["255.255.255.0", "255.255.0.0", "255.255.254.0"],
+  "partsize": { "min": 512, "max": 16384 },
+  "themes": [
+    { "id": "luci-theme-argon", "name": "Argon", "path": "argon" },
+    { "id": "luci-theme-bootstrap", "name": "Bootstrap（官方）", "path": "bootstrap" },
+    { "id": "luci-theme-material", "name": "Material（官方）", "path": "material" },
+    { "id": "luci-theme-openwrt-2020", "name": "OpenWrt 2020（官方）", "path": "openwrt2020" },
+    { "id": "luci-theme-design", "name": "Design", "path": "design" },
+    { "id": "luci-theme-kucat", "name": "Kucat", "path": "kucat" },
+    { "id": "luci-theme-aurora", "name": "Aurora", "path": "aurora" }
+  ],
+  "groups": [
+    {
+      "name": "代理与 DNS",
+      "items": [
+        { "id": "luci-app-nikki", "name": "Nikki（Mihomo 透明代理）" },
+        { "id": "luci-app-openclash", "name": "OpenClash" },
+        { "id": "luci-app-passwall", "name": "PassWall" },
+        { "id": "luci-app-homeproxy", "name": "HomeProxy" },
+        { "id": "luci-app-mosdns", "name": "MosDNS" },
+        { "id": "luci-app-smartdns", "name": "SmartDNS" },
+        { "id": "luci-app-adguardhome", "name": "AdGuard Home" },
+        { "id": "xray-core", "name": "xray-core（命令行，无界面）" },
+        { "id": "proxychains-ng", "name": "proxychains-ng（命令行）" }
+      ]
+    },
+    {
+      "name": "组网与穿透",
+      "items": [
+        { "id": "luci-app-openvpn", "name": "OpenVPN", "requires": ["openvpn-openssl", "openvpn-easy-rsa", "kmod-tun"] },
+        { "id": "luci-app-zerotier", "name": "ZeroTier" },
+        { "id": "luci-app-frpc", "name": "frp 客户端" },
+        { "id": "luci-app-frps", "name": "frp 服务端" },
+        { "id": "luci-app-ddns", "name": "DDNS" },
+        { "id": "luci-app-ddns-go", "name": "DDNS-Go" },
+        { "id": "luci-app-mwan3", "name": "多线负载（mwan3）" },
+        { "id": "luci-app-wol", "name": "网络唤醒（WOL）", "requires": ["etherwake"] }
+      ]
+    },
+    {
+      "name": "存储、容器与下载",
+      "items": [
+        { "id": "luci-app-samba4", "name": "Samba 文件共享", "requires": ["wsdd2"] },
+        { "id": "luci-app-dockerman", "name": "Docker 管理", "requires": ["dockerd"] },
+        { "id": "luci-app-diskman", "name": "磁盘管理" },
+        { "id": "luci-app-fileassistant", "name": "文件助手" },
+        { "id": "luci-app-partexp", "name": "分区扩容" },
+        { "id": "luci-app-unishare", "name": "统一文件共享" },
+        { "id": "luci-app-hd-idle", "name": "硬盘休眠" },
+        { "id": "luci-app-aria2", "name": "Aria2" },
+        { "id": "luci-app-qbittorrent", "name": "qBittorrent" },
+        { "id": "luci-app-openlist", "name": "OpenList" },
+        { "id": "luci-app-minidlna", "name": "MiniDLNA" },
+        { "id": "luci-app-filebrowser", "name": "FileBrowser" }
+      ]
+    },
+    {
+      "name": "系统与监控",
+      "items": [
+        { "id": "luci-app-statistics", "name": "统计图表" },
+        { "id": "luci-app-nlbwmon", "name": "流量监控（nlbwmon）" },
+        { "id": "luci-app-netdata", "name": "Netdata" },
+        { "id": "luci-app-parentcontrol", "name": "家长控制" },
+        { "id": "luci-app-sqm", "name": "SQM 流量整形" },
+        { "id": "luci-app-supervisord", "name": "Supervisord 管理", "requires": ["supervisor"] },
+        { "id": "luci-app-ttyd", "name": "网页终端（ttyd）", "requires": ["ttyd"] },
+        { "id": "luci-app-autoreboot", "name": "定时重启" },
+        { "id": "luci-app-cpufreq", "name": "CPU 调频" },
+        { "id": "luci-app-ramfree", "name": "释放内存" },
+        { "id": "luci-app-acme", "name": "ACME 证书" },
+        { "id": "luci-app-commands", "name": "自定义命令" },
+        { "id": "luci-app-vlmcsd", "name": "KMS 服务器" }
+      ]
+    },
+    {
+      "name": "命令行工具",
+      "items": [
+        { "id": "btop", "name": "btop" },
+        { "id": "tcpdump", "name": "tcpdump" },
+        { "id": "lsof", "name": "lsof" },
+        { "id": "python3", "name": "Python 3" },
+        { "id": "python3-pip", "name": "Python 3 pip", "requires": ["python3"] }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "N4100 现网同款",
+      "packages": [
+        "luci-app-nikki", "xray-core", "proxychains-ng", "luci-app-openvpn", "luci-app-dockerman",
+        "luci-app-samba4", "luci-app-diskman", "luci-app-fileassistant", "luci-app-partexp",
+        "luci-app-nlbwmon", "luci-app-wol", "luci-app-parentcontrol", "luci-app-supervisord",
+        "luci-app-ttyd", "python3", "python3-pip", "btop", "tcpdump", "lsof"
+      ]
+    },
+    { "name": "纯净（不加任何插件）", "packages": [] }
+  ]
+}
