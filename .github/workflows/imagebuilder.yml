@@ -39,6 +39,15 @@ jobs:
         mkdir ib && tar --zstd -xf "$IB_FILE" -C ib --strip-components=1
         ls ib | head -20
 
+    - name: Point package feeds to the public mirror
+      run: |
+        cd "$RUNNER_TEMP/ib"
+        echo "---- repositories.conf（原）----"; cat repositories.conf
+        # 作者发布的 ImageBuilder 里软件源是其服务器本地路径 file://www/wwwroot/dl.openwrt.ai/...，这里改成公网地址
+        sed -i -E 's#file:/*www/wwwroot/dl\.openwrt\.ai#https://dl.openwrt.ai#g' repositories.conf
+        echo "---- repositories.conf（改后）----"; grep -E '^(src|option)' repositories.conf
+        if grep -q 'wwwroot' repositories.conf; then echo "::error::repositories.conf 里仍有本地路径"; exit 1; fi
+
     - name: Apply options
       id: opts
       env:
@@ -56,6 +65,9 @@ jobs:
         cd "$RUNNER_TEMP/ib"
         make image PROFILE=generic PACKAGES="$PACKAGES" FILES=files ROOTFS_PARTSIZE="$PARTSIZE" 2>&1 | tee "$GITHUB_WORKSPACE/make.log"
         test "${PIPESTATUS[0]}" -eq 0
+        if grep -E 'Unknown package|Failed to download the package list' "$GITHUB_WORKSPACE/make.log"; then
+          echo "::error::有软件包或软件源下载失败，镜像不完整"; exit 1
+        fi
         ls -la bin/targets/x86/64/
 
     - name: Verify packages in manifest
