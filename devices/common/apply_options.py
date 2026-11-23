@@ -125,6 +125,7 @@ def apply(mode="src"):
         f"uci set network.lan.netmask='{netmask}'",
         f"uci set system.@system[0].hostname='{hostname}'",
         f"uci set luci.main.mediaurlbase='/luci-static/{theme_path}'",
+        "uci set luci.main.lang='zh_cn'",
     ]
     if not ipv6:
         lines += [

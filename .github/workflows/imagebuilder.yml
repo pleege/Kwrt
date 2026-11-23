@@ -63,7 +63,9 @@ jobs:
         PARTSIZE: ${{ steps.opts.outputs.partsize }}
       run: |
         cd "$RUNNER_TEMP/ib"
-        make image PROFILE=generic PACKAGES="$PACKAGES" FILES=files ROOTFS_PARTSIZE="$PARTSIZE" 2>&1 | tee "$GITHUB_WORKSPACE/make.log"
+        # 去掉 ImageBuilder 默认包里在预编译源中装不上的三个（2026-11-23 实测）：
+        #   kmod-i40evf 已更名(kmod-i40e/kmod-iavf 已在默认包里)、luci-i18n-base-zh-cn 预编译源无此包、luci-app-fan 依赖缺失的 kmod-hwmon-pwmfan
+        make image PROFILE=generic PACKAGES="$PACKAGES -kmod-i40evf -luci-i18n-base-zh-cn -luci-app-fan" FILES=files ROOTFS_PARTSIZE="$PARTSIZE" 2>&1 | tee "$GITHUB_WORKSPACE/make.log"
         test "${PIPESTATUS[0]}" -eq 0
         if grep -E 'Unknown package|Failed to download the package list' "$GITHUB_WORKSPACE/make.log"; then
           echo "::error::有软件包或软件源下载失败，镜像不完整"; exit 1
@@ -80,6 +82,8 @@ jobs:
         for p in $PACKAGES; do grep -q "^$p - " "$mf" || missing="$missing $p"; done
         [ -z "$missing" ] || { echo "::error::固件清单里缺少:$missing"; exit 1; }
         echo "核对通过：请求的软件包都在固件里"
+        echo "---- 固件内语言包（可能为空，见说明）----"; grep -E "luci-i18n" "$mf" || echo "(无 luci-i18n 包)"
+        echo "---- 清单总包数 ----"; wc -l < "$mf"
 
     - name: Upload firmware
       uses: actions/upload-artifact@v4
